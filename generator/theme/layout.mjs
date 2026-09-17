@@ -43,6 +43,41 @@ function cdnScript(dep) {
   return `<script src="${dep.src}" integrity="${dep.sri}" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>`;
 }
 
+/**
+ * Where this page sits in the hierarchy, as schema.org expects it.
+ *
+ * Search engines use this to render the "Home > Kubernetes > OOMKilled"
+ * trail instead of a bare URL, which is worth more on a deep documentation
+ * URL than on a shallow one. A section index is its own last crumb, so it
+ * is not repeated.
+ *
+ * Deliberately absent: SearchAction. It claims the site accepts a search
+ * query at a URL, and this one only has a client-side modal with no `?q=`
+ * route — declaring it would be structured data that lies.
+ */
+function breadcrumbLd(site, page) {
+  if (!page) return null;
+  const crumbs = [{ name: "Home", url: site.origin + site.baseUrl }];
+  if (page.section) {
+    crumbs.push({
+      name: page.section.label,
+      url: site.origin + site.baseUrl + page.section.dir + "/",
+    });
+  }
+  if (!page.isReadme) crumbs.push({ name: page.title, url: site.origin + page.url });
+  if (crumbs.length < 2) return null;
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: crumbs.map((c, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: c.name,
+      item: c.url,
+    })),
+  };
+}
+
 function jsonLd(site, page) {
   if (!page) {
     return {
@@ -59,9 +94,17 @@ function jsonLd(site, page) {
     headline: page.title,
     description: page.description,
     author: { "@type": "Person", name: page.author || site.author },
+    datePublished: page.created || undefined,
     dateModified: page.updated || undefined,
     url: site.origin + page.url,
+    wordCount: page.words || undefined,
+    keywords: page.tags?.length ? page.tags.join(", ") : undefined,
   };
+}
+
+/** All structured-data nodes for a page, as one array. */
+function structuredData(site, page) {
+  return [jsonLd(site, page), breadcrumbLd(site, page)].filter(Boolean);
 }
 
 /**
@@ -76,12 +119,29 @@ export function baseLayout(o) {
   const canonical = site.origin + (o.activePage ? o.activePage.url : o.url || site.baseUrl);
   const b = site.baseUrl;
   const needs = o.needs || {};
+  // A page can opt out of the sidebar entirely (the landing page does). It is
+  // left out of the DOM rather than hidden with CSS: a nav that is not there
+  // costs no bytes, cannot be reached by Tab, and takes its now-meaningless
+  // toggle buttons with it.
+  const hasSidebar = o.sidebar !== false;
 
   // Inline scripts are allowed by hash, so the CSP needs no 'unsafe-inline'
   // for scripts. The boot script must stay inline: it runs before first
   // paint to prevent a theme/sidebar flash.
   const bootJs = `(function(){var t=localStorage.getItem("sd365-theme");if(t)document.documentElement.dataset.theme=t;if(localStorage.getItem("sd365-sidebar")==="closed")document.documentElement.classList.add("sidebar-collapsed");})();`;
   const cfgJs = `window.SD365={base:"${b}",autoHideSidebar:${o.theme?.autoHideSidebar !== false}};`;
+
+  // Publication dates as Open Graph article properties. Only meaningful on a
+  // real article, and only when the frontmatter actually carries the date —
+  // an empty content="" is worse than the tag's absence.
+  const ap = o.activePage;
+  const articleMeta = ap
+    ? [
+        ap.created ? `\n<meta property="article:published_time" content="${ap.created}">` : "",
+        ap.updated ? `\n<meta property="article:modified_time" content="${ap.updated}">` : "",
+        ...(ap.tags || []).map((t) => `\n<meta property="article:tag" content="${esc(t)}">`),
+      ].join("")
+    : "";
 
   const needsCdn = needs.mermaid || needs.hljs;
   const csp = [
@@ -104,6 +164,8 @@ export function baseLayout(o) {
 <meta http-equiv="Content-Security-Policy" content="${csp}">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0d11" media="(prefers-color-scheme: dark)">
 <title>${esc(fullTitle)}</title>
 <meta name="description" content="${esc(desc)}">
 <link rel="canonical" href="${canonical}">
@@ -115,18 +177,24 @@ export function baseLayout(o) {
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="${esc(fullTitle)}">
 <meta name="twitter:description" content="${esc(desc)}">
+<meta name="author" content="${esc(o.activePage?.author || site.author)}">${articleMeta}
 <link rel="icon" href="${b}assets/favicon.svg" type="image/svg+xml">
 <link rel="alternate" type="application/rss+xml" title="${esc(site.title)}" href="${b}rss.xml">
 <link rel="stylesheet" href="${b}assets/css/theme.css">${needsCdn ? `\n<link rel="preconnect" href="${CDN_ORIGIN}" crossorigin>` : ""}
 <script>${bootJs}</script>
-<script type="application/ld+json">${jsonForScript(jsonLd(site, o.activePage))}</script>
+<script type="application/ld+json">${jsonForScript(structuredData(site, o.activePage))}</script>
 ${o.extraHead || ""}
 </head>
 <body class="${o.bodyClass || ""}">
+<a class="skip-link" href="#main">Skip to content</a>
 <div class="progress-bar" aria-hidden="true"><div id="progress"></div></div>
-<header class="topbar">
+<header class="topbar">${
+  hasSidebar
+    ? `
   <button id="menu-btn" class="icon-btn" aria-label="Open navigation">${icon("menu")}</button>
-  <button id="sidebar-btn" class="icon-btn" aria-label="Toggle sidebar" title="Toggle sidebar (\\)">${icon("panelClose", "i-close")}${icon("panelOpen", "i-open")}</button>
+  <button id="sidebar-btn" class="icon-btn" aria-label="Toggle sidebar" title="Toggle sidebar (\\)">${icon("panelClose", "i-close")}${icon("panelOpen", "i-open")}</button>`
+    : ""
+}
   <a class="brand" href="${b}">
     <span class="brand-mark">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5-8 4.5-8-4.5 8-4.5Z" fill="currentColor" opacity=".95"/><path d="m4 12.5 8 4.5 8-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".65"/></svg>
@@ -141,13 +209,17 @@ ${o.extraHead || ""}
     <a class="icon-btn" href="${site.repo}" target="_blank" rel="noopener" aria-label="GitHub repository">${icon("github")}</a>
   </div>
 </header>
-<div class="shell">
+<div class="shell${hasSidebar ? "" : " shell-bare"}">${
+  hasSidebar
+    ? `
   <aside class="sidebar" id="sidebar">${sidebar(sections, o.activePage, o.activeSection, {
     tagsUrl: o.tags?.length ? `${b}tags/` : null,
     tagCount: o.tags?.length || 0,
     tagsActive: !!o.tagsActive,
   })}</aside>
-  <div class="sidebar-scrim" id="sidebar-scrim"></div>
+  <div class="sidebar-scrim" id="sidebar-scrim"></div>`
+    : ""
+}
   ${o.content}
 </div>
 <footer class="footer">

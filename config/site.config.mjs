@@ -18,26 +18,28 @@ export default {
   },
 
   // Content sections, in sidebar/nav order. `dir` is a folder under docs/,
-  // `icon` is a name from generator/lib/icons.mjs.
+  // `icon` is a name from generator/lib/icons.mjs, and `group` is the optional
+  // sidebar heading a section sits under. Sections with no `group` are listed
+  // ungrouped, so a site that wants one flat list simply omits the field.
   sections: [
-    { dir: "01-linux", label: "Linux", icon: "terminal", blurb: "Host-level failures: CPU saturation, memory pressure, disk exhaustion." },
-    { dir: "02-networking", label: "Networking", icon: "network", blurb: "DNS, TCP, proxies, load balancers, TLS." },
-    { dir: "03-docker", label: "Docker", icon: "layers", blurb: "Images, build pipelines, cgroups, container runtime behaviour." },
-    { dir: "04-kubernetes", label: "Kubernetes", icon: "grid", blurb: "Scheduling, probes, autoscaling, cluster architecture, failure modes." },
-    { dir: "05-cicd", label: "CI/CD", icon: "spark", blurb: "Pipeline design, deployment safety, rollback, migration." },
-    { dir: "06-gitops", label: "GitOps", icon: "github", blurb: "Argo CD, drift, sync failures, secrets in a declarative world." },
-    { dir: "07-infrastructure-as-code", label: "Infrastructure as Code", icon: "chip", blurb: "Terraform/OpenTofu state, drift, modules, migrations." },
-    { dir: "08-observability", label: "Observability", icon: "search", blurb: "Metrics, logs, traces, alert design, cost of telemetry." },
-    { dir: "09-sre", label: "SRE", icon: "warning", blurb: "Incident response, postmortems, SLOs, error budgets, MTTR." },
-    { dir: "10-security", label: "Security", icon: "shield", blurb: "Secrets, RBAC, supply chain, credential compromise." },
-    { dir: "11-cloud", label: "Cloud", icon: "star", blurb: "Multi-region architecture, failover, cost engineering." },
-    { dir: "12-platform-engineering", label: "Platform Engineering", icon: "bulb", blurb: "Internal developer platforms, golden paths, self-service." },
-    { dir: "labs", label: "Labs", icon: "bug", blurb: "Reproducible environments that break on purpose." },
-    { dir: "adr", label: "Decision Records", icon: "scale", blurb: "Architecture decisions, the options rejected, and why." },
-    { dir: "interview", label: "Interview Prep", icon: "mic", blurb: "Scenario-driven questions with strong and weak answers." },
-    { dir: "system-design", label: "System Design", icon: "note", blurb: "Distributed systems designed end to end." },
-    { dir: "glossary", label: "Glossary", icon: "book", blurb: "Terms you should be able to define cold." },
-    { dir: "notes", label: "Notes", icon: "list", blurb: "Roadmap, references, and working notes." },
+    { dir: "01-linux", group: "Domains", label: "Linux", icon: "terminal", blurb: "Host-level failures: CPU saturation, memory pressure, disk exhaustion." },
+    { dir: "02-networking", group: "Domains", label: "Networking", icon: "network", blurb: "DNS, TCP, proxies, load balancers, TLS." },
+    { dir: "03-docker", group: "Domains", label: "Docker", icon: "layers", blurb: "Images, build pipelines, cgroups, container runtime behaviour." },
+    { dir: "04-kubernetes", group: "Domains", label: "Kubernetes", icon: "grid", blurb: "Scheduling, probes, autoscaling, cluster architecture, failure modes." },
+    { dir: "05-cicd", group: "Domains", label: "CI/CD", icon: "spark", blurb: "Pipeline design, deployment safety, rollback, migration." },
+    { dir: "06-gitops", group: "Domains", label: "GitOps", icon: "github", blurb: "Argo CD, drift, sync failures, secrets in a declarative world." },
+    { dir: "07-infrastructure-as-code", group: "Domains", label: "Infrastructure as Code", icon: "chip", blurb: "Terraform/OpenTofu state, drift, modules, migrations." },
+    { dir: "08-observability", group: "Domains", label: "Observability", icon: "search", blurb: "Metrics, logs, traces, alert design, cost of telemetry." },
+    { dir: "09-sre", group: "Domains", label: "SRE", icon: "warning", blurb: "Incident response, postmortems, SLOs, error budgets, MTTR." },
+    { dir: "10-security", group: "Domains", label: "Security", icon: "shield", blurb: "Secrets, RBAC, supply chain, credential compromise." },
+    { dir: "11-cloud", group: "Domains", label: "Cloud", icon: "star", blurb: "Multi-region architecture, failover, cost engineering." },
+    { dir: "12-platform-engineering", group: "Domains", label: "Platform Engineering", icon: "bulb", blurb: "Internal developer platforms, golden paths, self-service." },
+    { dir: "labs", group: "Practice", label: "Labs", icon: "bug", blurb: "Reproducible environments that break on purpose." },
+    { dir: "adr", group: "Practice", label: "Decision Records", icon: "scale", blurb: "Architecture decisions, the options rejected, and why." },
+    { dir: "interview", group: "Practice", label: "Interview Prep", icon: "mic", blurb: "Scenario-driven questions with strong and weak answers." },
+    { dir: "system-design", group: "Practice", label: "System Design", icon: "note", blurb: "Distributed systems designed end to end." },
+    { dir: "glossary", group: "Reference", label: "Glossary", icon: "book", blurb: "Terms you should be able to define cold." },
+    { dir: "notes", group: "Reference", label: "Notes", icon: "list", blurb: "Roadmap, references, and working notes." },
   ],
 
   theme: {
@@ -63,8 +65,8 @@ export default {
     // rename can't break the build.
     startHere: [
       "04-kubernetes/crashloopbackoff-after-release",
-      "09-sre/production-outage-postmortem",
-      "notes/learning-roadmap",
+      "04-kubernetes/oomkilled-under-load",
+      "10-security/python-before-your-code-runs",
     ],
   },
 
