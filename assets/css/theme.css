@@ -117,6 +117,25 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+/* Keyboard users land on the header's menu/sidebar/search buttons before any
+   content, on every page. This gives them one Tab to jump the chrome; it is
+   off-screen until focused, so it costs sighted users nothing. */
+.skip-link {
+  position: absolute;
+  left: 8px;
+  top: -48px;
+  z-index: 100;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--bg-raised);
+  color: var(--accent);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 18%);
+  font-weight: 600;
+  transition: top .15s ease;
+}
+.skip-link:focus { top: 8px; text-decoration: none; }
 kbd {
   font: 500 11px var(--font-mono);
   padding: 2px 5px;
@@ -240,8 +259,29 @@ html.sidebar-collapsed .sidebar {
 .nav-extra[aria-current="page"] { color: var(--accent); }
 .nav-extra[aria-current="page"] .nav-icon { color: var(--accent); }
 
+/* Group heading (Domains / Practice / Reference). Deliberately not sticky:
+   pinning it to the scrollport made it collide with whichever section row was
+   passing underneath, and in a nav this short it bought nothing. */
+.nav-group-label {
+  margin: 16px 0 6px; padding: 4px 10px;
+  font: 600 10.5px/1.4 var(--font-sans);
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-faint);
+}
+.nav-group-label:first-child { margin-top: 2px; }
+
 .nav-group { margin-bottom: 2px; }
+/* An active section gets a spine on the left, so "where am I" is answerable
+   from peripheral vision rather than by reading the labels. */
+.nav-group[open] > summary::before {
+  content: ""; position: absolute; left: 0; top: 6px; bottom: 6px;
+  width: 2px; border-radius: 2px; background: var(--accent);
+}
+/* A section with nothing in it recedes instead of shouting a zero. */
+.nav-group.is-empty > summary { color: var(--text-faint); }
+.nav-group.is-empty > summary:hover { color: var(--text-soft); }
 .nav-group summary {
+  position: relative;
   display: flex; align-items: center; gap: 9px; padding: 7px 10px;
   border-radius: var(--radius-sm); cursor: pointer; font-weight: 600; font-size: 13.5px;
   color: var(--text-soft); list-style: none; user-select: none; white-space: nowrap;
@@ -550,6 +590,9 @@ a.tag:hover .tag-count { color: inherit; border-left-color: currentColor; }
    ============================================================ */
 /* The landing page is wider than an article but centres on the same axis,
    and widens with the sidebar collapsed exactly like an article does. */
+/* Landing page: no sidebar in the DOM at all, so there is no left rail to
+   reserve and the content centres on the true viewport axis. */
+.shell-bare .main { padding-left: var(--gutter); transition: none; }
 .home { max-width: 1120px; margin: 0 auto; }
 .hero { position: relative; text-align: center; padding: 60px 0 46px; }
 /* Decorative glow: never wider than its container, or it stretches the
@@ -568,7 +611,7 @@ a.tag:hover .tag-count { color: inherit; border-left-color: currentColor; }
 }
 .hero-tagline { font-size: 19px; font-weight: 600; color: var(--text); margin: 0 auto 12px; max-width: 620px; letter-spacing: -.3px; }
 .hero-desc { max-width: 620px; margin: 0 auto 28px; color: var(--text-soft); font-size: 15.5px; }
-.hero-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 42px; }
+.hero-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 20px 0 42px; }
 .btn {
   display: inline-flex; align-items: center; gap: 7px; padding: 10px 18px;
   border-radius: 10px; font-weight: 600; font-size: 14.5px;
@@ -592,6 +635,167 @@ a.tag:hover .tag-count { color: inherit; border-left-color: currentColor; }
 .stat-label { margin-top: 3px; font-size: 12.5px; color: var(--text-faint); }
 
 .home-h2 { font-size: 21px; margin: 46px 0 18px; letter-spacing: -.5px; font-weight: 680; }
+.home-sub { margin: -8px 0 18px; max-width: 62ch; color: var(--text-soft); font-size: 14px; }
+
+/* ---- hero search -------------------------------------------------------
+   Search is the main verb on a site like this, so it gets hero billing
+   rather than a 180px control in the top bar. It is a real button that
+   opens the existing modal — not an input that pretends to be one and then
+   has to hand focus over. */
+.hero-search {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; max-width: 520px; margin: 26px auto 0;
+  padding: 13px 16px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--bg-raised); color: var(--text-faint);
+  font: inherit; font-size: 15px; text-align: left; cursor: pointer;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.hero-search:hover {
+  border-color: var(--accent); color: var(--text-soft);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 7%); transform: translateY(-1px);
+}
+.hero-search .icon { width: 17px; height: 17px; flex: none; color: var(--text-faint); }
+.hero-search:hover .icon { color: var(--accent); }
+.hero-search-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hero-search kbd { flex: none; }
+
+/* Two search controls on screen at once is one too many. On the landing page
+   the hero owns search while it is in view, and the top bar takes over once
+   the hero scrolls away — so search is always one glance away without ever
+   being offered twice. The class is added by JS, so with scripting off the
+   top bar control simply stays put (search needs JS regardless). */
+body.topbar-search-idle .search-fake {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  pointer-events: none;
+}
+.search-fake { transition: opacity .2s ease, transform .2s ease, visibility .2s; }
+
+/* ---- featured scenarios -----------------------------------------------
+   One card visible at a time, the rest stacked underneath at opacity 0.
+   The track keeps the height of the tallest so rotation does not reflow
+   the page beneath it. */
+.scenes { position: relative; margin: 52px auto 0; max-width: 760px; }
+.scenes-track { display: grid; }
+.scene {
+  grid-area: 1 / 1;
+  display: block; padding: 22px 24px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-raised); color: var(--text); text-decoration: none;
+  opacity: 0; visibility: hidden;
+  transition: opacity .5s ease, transform .5s ease, border-color .15s ease;
+  transform: translateY(6px);
+}
+.scene.is-active { opacity: 1; visibility: visible; transform: none; }
+.scene:hover { border-color: var(--accent); text-decoration: none; }
+.scene-eyebrow {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 10px;
+  font: 600 11px var(--font-sans); letter-spacing: .05em; text-transform: uppercase;
+  color: var(--text-faint);
+}
+.scene-eyebrow .icon { width: 13px; height: 13px; color: var(--accent); }
+.scene-dot { opacity: .5; }
+.scene-text { margin: 0 0 14px; font-size: 16px; line-height: 1.6; color: var(--text); }
+.scene-cta { display: inline-flex; align-items: center; gap: 6px; font-weight: 650; font-size: 14px; color: var(--accent); }
+.scene-cta .icon { width: 14px; height: 14px; }
+.scene-dots { display: flex; justify-content: center; gap: 7px; margin-top: 16px; }
+.scene-pip {
+  width: 7px; height: 7px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 0; background: var(--border); transition: background .2s ease, width .2s ease;
+}
+.scene-pip.is-active { background: var(--accent); width: 20px; border-radius: 99px; }
+
+/* ---- next up ----------------------------------------------------------
+   Deliberately flatter than a real card: these are not written yet, so they
+   must not read as something you can click into. */
+.next-grid { margin-top: 4px; }
+.next-card {
+  padding: 16px 18px; border: 1px dashed var(--border); border-radius: var(--radius);
+  background: transparent;
+}
+.next-top { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+.next-icon { width: 14px; height: 14px; color: var(--text-faint); }
+.next-sec { font: 600 11px var(--font-sans); letter-spacing: .04em; text-transform: uppercase; color: var(--text-faint); }
+.next-type {
+  margin-left: auto; font: 600 10px var(--font-mono); letter-spacing: .02em;
+  color: var(--text-faint); background: var(--bg-soft);
+  border: 1px solid var(--border-soft); border-radius: 99px; padding: 2px 7px;
+}
+.next-name { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--text-soft); }
+
+/* ---- filter chips -----------------------------------------------------*/
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: -6px 0 20px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 99px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg-raised);
+  color: var(--text-soft); font: 600 13px var(--font-sans);
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+.chip:hover { border-color: var(--accent); color: var(--text); }
+.chip.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip-n { font: 600 10.5px var(--font-mono); opacity: .7; }
+.chip.is-active .chip-n { opacity: .85; }
+.card.is-filtered { display: none; }
+.chips-empty { color: var(--text-faint); font-size: 14px; }
+
+@media (max-width: 560px) {
+  .scene { padding: 18px 16px; }
+  .scene-text { font-size: 15px; }
+}
+
+/* Coverage panel — one row per domain, progress as a bar. Reads as a table
+   without being one, so it can collapse to a single column on a phone. */
+.coverage {
+  border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
+  background: var(--bg-raised);
+}
+.cov-row {
+  display: grid;
+  /* Named areas rather than auto-placement: the bar spans two columns when
+     this collapses on a phone, and auto-placement answered that by pushing
+     the count onto its own row away from the label it belongs to. */
+  grid-template-columns: 20px minmax(0, 1fr) minmax(80px, 3fr) auto;
+  grid-template-areas: "icon label bar num";
+  align-items: center; gap: 12px;
+  padding: 11px 14px; border-top: 1px solid var(--border-soft);
+  color: var(--text); font-size: 14px; text-decoration: none;
+}
+.cov-icon { grid-area: icon; }
+.cov-label { grid-area: label; }
+.cov-bar { grid-area: bar; }
+.cov-num { grid-area: num; }
+.cov-row:first-child { border-top: 0; }
+.cov-row:hover { background: var(--bg-soft); text-decoration: none; }
+.cov-icon { display: flex; color: var(--text-faint); }
+.cov-icon .icon { width: 15px; height: 15px; }
+.cov-row:hover .cov-icon { color: var(--accent); }
+.cov-label { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cov-bar {
+  height: 5px; border-radius: 99px; background: var(--bg-soft);
+  border: 1px solid var(--border-soft); overflow: hidden;
+}
+.cov-fill { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.cov-num { font: 600 12px var(--font-mono); color: var(--text); flex: none; }
+.cov-den { color: var(--text-faint); font-weight: 500; }
+/* Nothing written yet: keep the row, drop the emphasis. */
+.cov-row.is-empty .cov-label,
+.cov-row.is-empty .cov-num { color: var(--text-faint); font-weight: 500; }
+
+@media (max-width: 560px) {
+  /* Label and count stay on one line; the bar drops beneath them, indented
+     to line up with the label rather than the icon. */
+  .cov-row {
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "icon label num"
+      ".    bar   bar";
+    row-gap: 9px;
+  }
+}
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
 /* Curated rows are a fixed three across, so the set reads as a sequence
    rather than reflowing into whatever the auto-fill happens to allow. */

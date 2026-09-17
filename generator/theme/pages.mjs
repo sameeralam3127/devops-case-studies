@@ -1,7 +1,7 @@
 /** Page templates: home, section index, article, tag index, tag, 404. */
 
 import { baseLayout } from "./layout.mjs";
-import { esc, icon, breadcrumbs, tocPanel, prevNext, pageMeta, card, startCard, sectionCard, tagChips, statTiles } from "./components.mjs";
+import { esc, icon, breadcrumbs, tocPanel, prevNext, pageMeta, card, startCard, sectionCard, tagChips, statTiles, coverageRow, plannedCount, plannedEntries, nextUpCard } from "./components.mjs";
 import { tagsForPage } from "../lib/tags.mjs";
 
 /**
@@ -26,19 +26,43 @@ function resolveStartHere(config, sections) {
 
 export function homePage(config, sections, tags = []) {
   const site = config.site;
-  const cs = sections.find((s) => s.dir === "case-studies") || sections[0];
-  const csPages = cs ? cs.pages.filter((p) => !p.isReadme) : [];
-  const done = csPages.filter((p) => !p.placeholder).length;
-  const total = csPages.length;
 
+  // The case-study corpus is every section the config groups as a domain.
+  // The old code looked for a section literally called "case-studies" and
+  // fell back to sections[0] when it found none — which, after the docs were
+  // reorganised into numbered domains, silently made Linux "the" section:
+  // the primary button read "Browse linux" and pointed at an empty page, and
+  // "Latest" filtered to Linux and so rendered nothing at all.
+  const domains = sections.filter((s) => s.group === "Domains");
+  const corpus = domains.length ? domains : sections;
+
+  const listed = (sec) => sec.pages.filter((p) => !p.isReadme && p.type === "md");
+  const writtenIn = (sec) => listed(sec).filter((p) => !p.placeholder);
+
+  const caseStudies = corpus.flatMap(writtenIn);
   const allPages = sections.flatMap((s) => s.pages).filter((p) => !p.isReadme && p.type === "md");
   const published = allPages.filter((p) => !p.placeholder);
-  const diagrams = published.reduce((n, p) => n + (p.html.match(/class="mermaid"/g)?.length || 0), 0);
 
-  // "Latest" should mean latest. Sort by the updated date, newest first,
-  // and fall back to document order for pages that never set one.
-  const featured = published
-    .filter((p) => p.section.dir === cs?.dir)
+  const diagrams = published.reduce((n, p) => n + (p.html.match(/class="mermaid"/g)?.length || 0), 0);
+  const minutes = published.reduce((n, p) => n + (p.readingTime || 0), 0);
+
+  // Roadmap, read back out of each domain index's Planned table.
+  const coverage = corpus.map((sec) => {
+    const written = writtenIn(sec).length;
+    const readme = sec.pages.find((p) => p.isReadme);
+    return { sec, written, planned: written + plannedCount(readme) };
+  });
+  const plannedTotal = coverage.reduce((n, c) => n + c.planned, 0);
+  const domainsCovered = coverage.filter((c) => c.written).length;
+
+  // Land the primary button somewhere with content in it. Busiest domain
+  // first, so this keeps working as the corpus grows.
+  const busiest = coverage.slice().sort((a, b) => b.written - a.written)[0];
+  const browseUrl = busiest?.written ? busiest.sec.url : site.baseUrl + "tags/";
+
+  // "Latest" means latest across everything published, newest first, with
+  // document order as the tie-break for pages that never set a date.
+  const latest = published
     .slice()
     .sort((a, b) => String(b.updated || "").localeCompare(String(a.updated || "")))
     .slice(0, 6);
@@ -46,43 +70,113 @@ export function homePage(config, sections, tags = []) {
   const startHere = resolveStartHere(config, sections);
   const topTags = tags.slice(0, 14).map((t) => ({ ...t, count: t.pages.length }));
 
-  // Stat labels are sentence case, so a section called "Case Studies" reads
-  // as "Case studies written" rather than shouting mid-phrase.
-  const sentence = (s) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  // Featured scenarios: the opening paragraph of each case study's Scenario
+  // section. This is the most honest possible answer to "what is this site" —
+  // it shows the actual voice of the content rather than describing it. Pages
+  // without a Scenario section (references, mock-interview prompts) opt out
+  // by simply not having one.
+  const scenarios = published
+    .map((pg) => {
+      const sc = (pg.searchSections || []).find((h) => /^scenario$/i.test(h.title));
+      if (!sc?.text) return null;
+      const text = sc.text.replace(/\s+/g, " ").trim();
+      return text.length > 40 ? { page: pg, text: text.slice(0, 210).trim() } : null;
+    })
+    .filter(Boolean)
+    .slice(0, 5);
 
+  // Next up: real planned entries, round-robined across domains so the strip
+  // shows breadth rather than six consecutive Linux rows.
+  const queues = corpus.map((sec) => plannedEntries(sec.pages.find((pg) => pg.isReadme)).map((e) => ({ sec, ...e })));
+  const nextUp = [];
+  for (let i = 0; nextUp.length < 6; i++) {
+    const before = nextUp.length;
+    for (const q of queues) {
+      if (q[i] && nextUp.length < 6) nextUp.push(q[i]);
+    }
+    if (nextUp.length === before) break;
+  }
+
+  // Filter chips for Latest, built from the sections actually represented.
+  const latestSections = [];
+  for (const pg of latest) {
+    if (pg.section && !latestSections.some((x) => x.dir === pg.section.dir)) latestSections.push(pg.section);
+  }
+
+  const hours = minutes >= 90 ? `${(minutes / 60).toFixed(1)} h` : `${minutes} min`;
   const stats = [
-    total ? { value: `${done} / ${total}`, label: `${sentence(cs.label)} written` } : null,
-    { value: published.length, label: "Pages published" },
+    { value: `${caseStudies.length} / ${plannedTotal}`, label: "Case studies written" },
+    { value: `${domainsCovered} / ${corpus.length}`, label: "Domains covered" },
     diagrams ? { value: diagrams, label: "Diagrams" } : null,
+    minutes ? { value: hours, label: "Of reading" } : null,
     tags.length ? { value: tags.length, label: "Tags" } : null,
   ].filter(Boolean);
 
-  const content = `<main class="main home">
+  const content = `<main id="main" class="main home">
 <section class="hero">
   <h1>${esc(site.title)}</h1>
   <p class="hero-tagline">${esc(site.tagline)}</p>
   <p class="hero-desc">${esc(site.description)}</p>
+  <button class="hero-search" id="hero-search" type="button" aria-label="Search case studies">
+    ${icon("search")}<span class="hero-search-label">Search failure modes, patterns, commands…</span><kbd><span class="kbd-mod">Ctrl</span> K</kbd>
+  </button>
   <div class="hero-actions">
-    <a class="btn btn-primary" href="${cs ? cs.url : site.baseUrl}">Browse ${esc((cs?.label || "content").toLowerCase())} ${icon("arrowRight")}</a>
+    <a class="btn btn-primary" href="${browseUrl}">Browse case studies ${icon("arrowRight")}</a>
     <a class="btn" href="${site.repo}" target="_blank" rel="noopener">${icon("github")} View on GitHub</a>
   </div>
   ${statTiles(stats)}
 </section>
+
+${scenarios.length ? `<section class="scenes" id="scenes"${scenarios.length > 1 ? ' data-rotate="7000"' : ""}>
+  <div class="scenes-track">${scenarios
+    .map(
+      (sc, i) => `<a class="scene${i === 0 ? " is-active" : ""}" href="${sc.page.url}"${i === 0 ? "" : ' aria-hidden="true" tabindex="-1"'}>
+    <span class="scene-eyebrow">${icon("warning")}<span>Scenario</span><span class="scene-dot">·</span><span>${esc(sc.page.section.label)}</span>${
+      sc.page.difficulty ? `<span class="scene-dot">·</span><span>${esc(String(sc.page.difficulty))}</span>` : ""
+    }</span>
+    <p class="scene-text">${esc(sc.text)}…</p>
+    <span class="scene-cta">${esc(sc.page.title)} ${icon("arrowRight")}</span>
+  </a>`
+    )
+    .join("")}</div>
+  ${scenarios.length > 1 ? `<div class="scene-dots" role="tablist" aria-label="Featured scenarios">${scenarios
+    .map((sc, i) => `<button class="scene-pip${i === 0 ? " is-active" : ""}" type="button" role="tab" aria-selected="${i === 0}" aria-label="Scenario ${i + 1}: ${esc(sc.page.title)}" data-i="${i}"></button>`)
+    .join("")}</div>` : ""}
+</section>` : ""}
 
 ${startHere.length ? `<section>
   <h2 class="home-h2">Start here</h2>
   <div class="grid grid-3">${startHere.map(startCard).join("")}</div>
 </section>` : ""}
 
+${latest.length ? `<section id="latest">
+  <h2 class="home-h2">Latest</h2>
+  ${latestSections.length > 1 ? `<div class="chips" id="latest-filters" role="group" aria-label="Filter by section">
+    <button class="chip is-active" type="button" data-filter="all" aria-pressed="true">All <span class="chip-n">${latest.length}</span></button>
+    ${latestSections
+      .map((sec) => `<button class="chip" type="button" data-filter="${esc(sec.dir)}" aria-pressed="false">${esc(sec.label)} <span class="chip-n">${latest.filter((p) => p.section?.dir === sec.dir).length}</span></button>`)
+      .join("")}
+  </div>` : ""}
+  <div class="grid" id="latest-grid">${latest.map((p) => card(p, { showDate: true })).join("")}</div>
+  <p class="chips-empty" id="latest-empty" hidden>Nothing in that section yet.</p>
+</section>` : ""}
+
+${coverage.length ? `<section>
+  <h2 class="home-h2">Coverage</h2>
+  <p class="home-sub">What is written, and what is next. Counts come from the Planned table in each domain index, so this moves as the roadmap does.</p>
+  <div class="coverage">${coverage.map((c) => coverageRow(c.sec, c.written, c.planned)).join("")}</div>
+</section>` : ""}
+
+${nextUp.length ? `<section>
+  <h2 class="home-h2">Next up</h2>
+  <p class="home-sub">The next entries queued across the domains, taken straight from each index's Planned table.</p>
+  <div class="grid grid-3 next-grid">${nextUp.map(nextUpCard).join("")}</div>
+</section>` : ""}
+
 <section>
   <h2 class="home-h2">Explore</h2>
   <div class="grid">${sections.map(sectionCard).join("")}</div>
 </section>
-
-${featured.length ? `<section>
-  <h2 class="home-h2">Latest ${esc((cs?.label || "pages").toLowerCase())}</h2>
-  <div class="grid">${featured.map((p) => card(p, { showDate: true })).join("")}</div>
-</section>` : ""}
 
 ${topTags.length ? `<section>
   <h2 class="home-h2">Browse by tag</h2>
@@ -91,14 +185,17 @@ ${topTags.length ? `<section>
 </section>` : ""}
 </main>`;
 
-  return baseLayout({ site, theme: config.theme, sections, tags, content, bodyClass: "is-home", url: site.baseUrl, needs: {} });
+  // The landing page carries its own navigation — Start here, Latest,
+  // Coverage, Explore, tags — so a sidebar listing the same sections is
+  // duplication that costs the hero its width.
+  return baseLayout({ site, theme: config.theme, sections, tags, content, bodyClass: "is-home", url: site.baseUrl, needs: {}, sidebar: false });
 }
 
 export function sectionIndexPage(config, sections, sec, tags = []) {
   const site = config.site;
   const readme = sec.pages.find((p) => p.isReadme);
   const listing = sec.pages.filter((p) => !p.isReadme);
-  const content = `<main class="main">
+  const content = `<main id="main" class="main">
 <article class="article">
   ${breadcrumbs(site, [{ label: sec.label, url: sec.url }])}
   <header class="page-header">
@@ -130,7 +227,7 @@ export function articlePage(config, sections, sec, page, tags = []) {
 <a href="${site.repo}" target="_blank" rel="noopener">Contributions are welcome</a> — the structure to follow is in <code>templates/</code>.</p></div></div>`
     : `<div class="prose">${page.html}</div>`;
 
-  const content = `<main class="main has-toc">
+  const content = `<main id="main" class="main has-toc">
 <article class="article">
   ${breadcrumbs(site, [{ label: sec.label, url: sec.url }, { label: page.title, url: page.url }])}
   <header class="page-header">
@@ -168,7 +265,7 @@ export function tagIndexPage(config, sections, tags) {
     })
     .join("");
 
-  const content = `<main class="main">
+  const content = `<main id="main" class="main">
 <article class="article">
   ${breadcrumbs(site, [{ label: "Tags", url }])}
   <header class="page-header">
@@ -205,7 +302,7 @@ export function tagPage(config, sections, tag, tags) {
     )
     .join("");
 
-  const content = `<main class="main">
+  const content = `<main id="main" class="main">
 <article class="article">
   ${breadcrumbs(site, [{ label: "Tags", url: `${site.baseUrl}tags/` }, { label: tag.name, url: tag.url }])}
   <header class="page-header">
@@ -226,7 +323,7 @@ export function tagPage(config, sections, tag, tags) {
 
 export function notFoundPage(config, sections, tags = []) {
   const site = config.site;
-  const content = `<main class="main"><article class="article center-404">
+  const content = `<main id="main" class="main"><article class="article center-404">
   <div class="e404">404</div>
   <h1>Page not found</h1>
   <p class="lead">This page doesn't exist — it may not be written yet.</p>

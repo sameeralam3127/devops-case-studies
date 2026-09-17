@@ -34,24 +34,44 @@
   /* ---------- sidebar: manual toggle + reading auto-hide ---------- */
   var sidebarBtn = $("#sidebar-btn");
   var stored = localStorage.getItem("sd365-sidebar"); // "open" | "closed" | null
-  // Auto-hide only applies on article pages when the reader hasn't chosen.
-  var autoArmed = CFG.autoHideSidebar !== false && stored === null &&
+  // Auto-hide applies on article pages at reading width.
+  //
+  // This used to require stored === null, which meant a single click of the
+  // toggle — ever — disabled reading mode permanently on that browser. The
+  // stored value is a starting state, not a standing veto: "closed" means
+  // the sidebar is already out of the way (the boot script handles it, so
+  // there is nothing to hide), and "open" means start expanded, which says
+  // nothing about what should happen 500px into an article.
+  //
+  // An explicit toggle still wins, but only for the page view it happens in:
+  // the click handler disarms autoArmed so the sidebar you just opened to
+  // navigate with does not snap shut under you.
+  var autoArmed = CFG.autoHideSidebar !== false && stored !== "closed" &&
     !document.body.classList.contains("is-home") && !!$(".prose");
   var autoHidden = false;
 
   function setCollapsed(on) { root.classList.toggle("sidebar-collapsed", on); }
 
-  sidebarBtn.addEventListener("click", function () {
-    var collapsed = !root.classList.contains("sidebar-collapsed");
-    setCollapsed(collapsed);
-    localStorage.setItem("sd365-sidebar", collapsed ? "closed" : "open");
-    autoArmed = false; // an explicit choice wins from here on
-    autoHidden = false;
-  });
+  // The landing page renders no sidebar at all, so these controls are absent
+  // there. Binding blind threw on the first one and — because this file is a
+  // single IIFE — took search, the theme toggle and everything after it down
+  // with it. Bind only what the page actually has.
+  var menuBtn = $("#menu-btn");
+  var scrim = $("#sidebar-scrim");
+
+  if (sidebarBtn) {
+    sidebarBtn.addEventListener("click", function () {
+      var collapsed = !root.classList.contains("sidebar-collapsed");
+      setCollapsed(collapsed);
+      localStorage.setItem("sd365-sidebar", collapsed ? "closed" : "open");
+      autoArmed = false; // an explicit choice wins from here on
+      autoHidden = false;
+    });
+  }
 
   /* ---------- mobile nav ---------- */
-  $("#menu-btn").addEventListener("click", function () { document.body.classList.toggle("nav-open"); });
-  $("#sidebar-scrim").addEventListener("click", function () { document.body.classList.remove("nav-open"); });
+  if (menuBtn) menuBtn.addEventListener("click", function () { document.body.classList.toggle("nav-open"); });
+  if (scrim) scrim.addEventListener("click", function () { document.body.classList.remove("nav-open"); });
 
   /* ---------- reading progress (+ auto-hide trigger) ---------- */
   var prog = $("#progress");
@@ -59,7 +79,7 @@
     var h = root;
     var max = h.scrollHeight - h.clientHeight;
     var y = h.scrollTop;
-    prog.style.width = (max > 0 ? (y / max) * 100 : 0) + "%";
+    if (prog) prog.style.width = (max > 0 ? (y / max) * 100 : 0) + "%";
 
     if (autoArmed && innerWidth >= 1000) {
       if (!autoHidden && y > 480 && !root.classList.contains("sidebar-collapsed")) {
@@ -291,6 +311,9 @@
   }
 
   $("#search-btn").addEventListener("click", openSearch);
+  // The landing page leads with search; it opens the same modal.
+  var heroSearch = $("#hero-search");
+  if (heroSearch) heroSearch.addEventListener("click", openSearch);
   input.addEventListener("input", function () { run(input.value); });
   input.addEventListener("keydown", function (e) {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -320,6 +343,8 @@
       e.preventDefault();
       openSearch();
     } else if (e.key === "\\") {
+      // No sidebar on the landing page, so nothing to toggle.
+      if (!sidebarBtn) return;
       e.preventDefault();
       sidebarBtn.click();
     } else if (e.key === "[" || e.key === "]") {
@@ -329,4 +354,217 @@
       $("#theme-btn").click();
     }
   });
+  /* ================= landing page ==================================
+     Everything below is enhancement. The page is complete and correct
+     server-rendered: the first scenario is visible, the coverage bars
+     already carry their real widths, the stat tiles already show their
+     final numbers, and every card is unfiltered. If this block never
+     runs, nothing is missing — it only adds motion and filtering. */
+
+  var reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- hand search over between hero and top bar ---------- */
+  (function () {
+    var hero = $("#hero-search");
+    var topbar = $("#search-btn");
+    if (!hero || !topbar || !window.IntersectionObserver) return;
+
+    // Start idle: the hero search is on screen at the top of the page.
+    document.body.classList.add("topbar-search-idle");
+
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        // Hero visible -> the top bar control stands down, and vice versa.
+        document.body.classList.toggle("topbar-search-idle", en.isIntersecting);
+      });
+    }, { threshold: 0.01 });
+    io.observe(hero);
+  })();
+
+  /* ---------- featured scenario rotator ---------- */
+  (function () {
+    var wrap = $("#scenes");
+    if (!wrap) return;
+    var scenes = [].slice.call(wrap.querySelectorAll(".scene"));
+    var pips = [].slice.call(wrap.querySelectorAll(".scene-pip"));
+    if (scenes.length < 2) return;
+
+    var i = 0;
+    var timer = null;
+    var period = Number(wrap.getAttribute("data-rotate")) || 7000;
+
+    function show(n) {
+      i = (n + scenes.length) % scenes.length;
+      scenes.forEach(function (el, k) {
+        var on = k === i;
+        el.classList.toggle("is-active", on);
+        // Only the visible card should be reachable by Tab or read aloud.
+        if (on) el.removeAttribute("aria-hidden");
+        else el.setAttribute("aria-hidden", "true");
+        el.tabIndex = on ? 0 : -1;
+      });
+      pips.forEach(function (pip, k) {
+        pip.classList.toggle("is-active", k === i);
+        pip.setAttribute("aria-selected", k === i ? "true" : "false");
+      });
+    }
+
+    function start() { if (!reduceMotion && !timer) timer = setInterval(function () { show(i + 1); }, period); }
+    function stop() { if (timer) { clearInterval(timer); timer = null; } }
+
+    pips.forEach(function (pip) {
+      pip.addEventListener("click", function () { stop(); show(Number(pip.getAttribute("data-i"))); });
+    });
+
+    // Reading one of these takes longer than the rotation, so hovering or
+    // tabbing into the card holds it; leaving resumes.
+    wrap.addEventListener("mouseenter", stop);
+    wrap.addEventListener("mouseleave", start);
+    wrap.addEventListener("focusin", stop);
+    wrap.addEventListener("focusout", start);
+    // A backgrounded tab should not burn through the whole set unseen.
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) stop(); else start();
+    });
+
+    show(0);
+    start();
+  })();
+
+  /* ---------- stat tiles: count up on first view ---------- */
+  (function () {
+    var tiles = [].slice.call(document.querySelectorAll(".stat-value"));
+    if (!tiles.length || reduceMotion || !window.IntersectionObserver) return;
+
+    // Stash the real value up front, before anything can animate over it.
+    // Reading the target from textContent at animation time was a bug: if
+    // animate() ran twice, the second run captured a half-counted value as
+    // its destination, so the tiles crept toward a number that was never
+    // right ("0 / 7" instead of "3 / 66") and never arrived.
+    tiles.forEach(function (t) { t.setAttribute("data-final", t.textContent); });
+
+    // Animate the numbers inside the string and leave everything else alone,
+    // so "3 / 66", "2.9 h" and "88" all survive with their formatting.
+    function animate(el) {
+      if (el.getAttribute("data-counting")) return;
+      el.setAttribute("data-counting", "1");
+      var final = el.getAttribute("data-final");
+      var parts = final.split(/(\d+(?:\.\d+)?)/);
+      var srcNums = parts.filter(function (x) { return /^\d/.test(x); });
+      if (!srcNums.length) { el.textContent = final; return; }
+      var nums = srcNums.map(Number);
+      var decimals = srcNums.map(function (src) {
+        var dot = src.indexOf(".");
+        return dot === -1 ? 0 : src.length - dot - 1;
+      });
+      var t0 = 0;
+      var DUR = 900;
+      function frame(ts) {
+        if (!t0) t0 = ts;
+        var k = Math.min(1, (ts - t0) / DUR);
+        var ease = 1 - Math.pow(1 - k, 3);
+        var n = -1;
+        el.textContent = parts
+          .map(function (chunk) {
+            if (!/^\d/.test(chunk)) return chunk;
+            n++;
+            return (nums[n] * ease).toFixed(decimals[n]);
+          })
+          .join("");
+        if (k < 1) requestAnimationFrame(frame);
+        else el.textContent = final; // land exactly on the stashed real value
+      }
+      requestAnimationFrame(frame);
+    }
+
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        io.unobserve(en.target);
+        animate(en.target);
+      });
+    }, { threshold: 0.6 });
+    tiles.forEach(function (t) { io.observe(t); });
+  })();
+
+  /* ---------- coverage bars: replay from zero on first view ---------- */
+  (function () {
+    var tracks = [].slice.call(document.querySelectorAll(".cov-bar"));
+    if (!tracks.length || reduceMotion || !window.IntersectionObserver) return;
+
+    // Observe the track, never the fill. Collapsing a fill to width:0 leaves
+    // it with no intersection area at all, so a threshold above 0 can never
+    // be met and the bar would sit at zero forever — which is worse than not
+    // animating, because the server-rendered width was already correct.
+    var pairs = tracks
+      .map(function (track, i) {
+        var fill = track.querySelector(".cov-fill[data-pct]");
+        return fill ? { track: track, fill: fill, i: i } : null;
+      })
+      .filter(Boolean);
+    if (!pairs.length) return;
+
+    pairs.forEach(function (pr) { pr.fill.style.width = "0%"; });
+
+    // One idempotent way to arrive at the real width. Whatever triggers it —
+    // the observer, or the safety net below — a bar can only ever end up at
+    // the value the build put there.
+    function reveal(pr, delay) {
+      if (pr.done) return;
+      pr.done = true;
+      pr.fill.style.transition = "width .8s cubic-bezier(.22,.8,.3,1)";
+      setTimeout(function () {
+        pr.fill.style.width = pr.fill.getAttribute("data-pct") + "%";
+      }, delay || 0);
+    }
+
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        io.unobserve(en.target);
+        var pr = pairs.filter(function (x) { return x.track === en.target; })[0];
+        // Stagger down the list so it reads as one sweep, not twelve twitches.
+        if (pr) reveal(pr, Math.min(pr.i, 12) * 45);
+      });
+    }, { threshold: 0.25 });
+    pairs.forEach(function (pr) { io.observe(pr.track); });
+
+    // Safety net. An animation that fails to run is a cosmetic loss; a bar
+    // stuck at 0% when the build said 25% is a page telling the reader
+    // something false. So anything still unrevealed shortly after load gets
+    // its width regardless of whether it was ever scrolled into view.
+    setTimeout(function () {
+      io.disconnect();
+      pairs.forEach(function (pr) { reveal(pr, 0); });
+    }, 4000);
+  })();
+
+  /* ---------- Latest: filter by section ---------- */
+  (function () {
+    var bar = $("#latest-filters");
+    var grid = $("#latest-grid");
+    var empty = $("#latest-empty");
+    if (!bar || !grid) return;
+
+    var chips = [].slice.call(bar.querySelectorAll(".chip"));
+    var cards = [].slice.call(grid.querySelectorAll(".card"));
+
+    bar.addEventListener("click", function (e) {
+      var chip = e.target.closest(".chip");
+      if (!chip) return;
+      var want = chip.getAttribute("data-filter");
+      chips.forEach(function (c) {
+        var on = c === chip;
+        c.classList.toggle("is-active", on);
+        c.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      var shown = 0;
+      cards.forEach(function (card) {
+        var hide = want !== "all" && card.getAttribute("data-section") !== want;
+        card.classList.toggle("is-filtered", hide);
+        if (!hide) shown++;
+      });
+      if (empty) empty.hidden = shown > 0;
+    });
+  })();
 })();
