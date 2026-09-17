@@ -1,0 +1,37 @@
+name: CI
+
+# deploy.yml only runs on pushes to main, which means a pull request used to
+# reach review with nothing checked. This runs the same gates on the PR itself,
+# without the Pages permissions a deploy needs.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Configuration first: doctor catches the failures that build cleanly
+      # and are only broken once deployed.
+      - name: Check configuration
+        run: node scripts/sd365.mjs doctor
+
+      - name: Validate content
+        run: node scripts/sd365.mjs validate
+
+      - name: Build site
+        run: node scripts/sd365.mjs build
