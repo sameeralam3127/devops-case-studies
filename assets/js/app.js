@@ -363,6 +363,24 @@
 
   var reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  /* ---------- hand search over between hero and top bar ---------- */
+  (function () {
+    var hero = $("#hero-search");
+    var topbar = $("#search-btn");
+    if (!hero || !topbar || !window.IntersectionObserver) return;
+
+    // Start idle: the hero search is on screen at the top of the page.
+    document.body.classList.add("topbar-search-idle");
+
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        // Hero visible -> the top bar control stands down, and vice versa.
+        document.body.classList.toggle("topbar-search-idle", en.isIntersecting);
+      });
+    }, { threshold: 0.01 });
+    io.observe(hero);
+  })();
+
   /* ---------- featured scenario rotator ---------- */
   (function () {
     var wrap = $("#scenes");
