@@ -34,8 +34,19 @@
   /* ---------- sidebar: manual toggle + reading auto-hide ---------- */
   var sidebarBtn = $("#sidebar-btn");
   var stored = localStorage.getItem("sd365-sidebar"); // "open" | "closed" | null
-  // Auto-hide only applies on article pages when the reader hasn't chosen.
-  var autoArmed = CFG.autoHideSidebar !== false && stored === null &&
+  // Auto-hide applies on article pages at reading width.
+  //
+  // This used to require stored === null, which meant a single click of the
+  // toggle — ever — disabled reading mode permanently on that browser. The
+  // stored value is a starting state, not a standing veto: "closed" means
+  // the sidebar is already out of the way (the boot script handles it, so
+  // there is nothing to hide), and "open" means start expanded, which says
+  // nothing about what should happen 500px into an article.
+  //
+  // An explicit toggle still wins, but only for the page view it happens in:
+  // the click handler disarms autoArmed so the sidebar you just opened to
+  // navigate with does not snap shut under you.
+  var autoArmed = CFG.autoHideSidebar !== false && stored !== "closed" &&
     !document.body.classList.contains("is-home") && !!$(".prose");
   var autoHidden = false;
 
