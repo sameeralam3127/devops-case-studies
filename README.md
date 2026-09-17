@@ -191,8 +191,9 @@ node scripts/sd365.mjs serve
 ```
 
 Write against [`templates/case-study.md`](templates/case-study.md), set
-`status: published`, and open a PR. CI runs `sd365 validate` (broken links,
-missing frontmatter) before deploying.
+`status: published`, and open a PR. CI runs `sd365 doctor` and `sd365 validate`
+(config, broken links, missing frontmatter) on the pull request itself, and
+again before deploying.
 
 The quality bar, in order: technically correct, realistic scenario, actionable
 investigation, honest trade-offs. A case study that cannot say what it costs or
