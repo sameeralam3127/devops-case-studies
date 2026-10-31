@@ -5,7 +5,9 @@ about the operating discipline rather than any particular technology.
 
 ## Written
 
-*None yet.*
+| Case study | Type | Difficulty |
+|---|---|---|
+| [Cloudflare's 18 Nov 2025 Outage: One Bad Feature File](cloudflare-bot-feature-file-outage-2025.md) | Incident | Hard |
 
 ## Planned
 

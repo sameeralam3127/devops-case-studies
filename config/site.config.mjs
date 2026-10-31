@@ -67,6 +67,7 @@ export default {
       "04-kubernetes/crashloopbackoff-after-release",
       "04-kubernetes/oomkilled-under-load",
       "10-security/python-before-your-code-runs",
+      "09-sre/cloudflare-bot-feature-file-outage-2025",
     ],
   },
 

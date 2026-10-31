@@ -24,7 +24,7 @@ const MIME = {
   ".ico": "image/x-icon",
 };
 
-export async function serve(port = 4365) {
+export async function serve(port = 4365, host = process.env.SD365_HOST || "127.0.0.1") {
   await build();
   const config = await loadConfig();
   const base = config.site.baseUrl;
@@ -85,11 +85,19 @@ export async function serve(port = 4365) {
 
   const server = http
     .createServer((req, res) => {
-      let urlPath = decodeURIComponent(new URL(req.url, "http://x").pathname);
+      // A malformed escape (e.g. "%E0%A4%A") makes decodeURIComponent throw.
+      // Uncaught, that exception takes the whole dev server down, so answer
+      // the one bad request with a 400 instead.
+      let urlPath;
+      try { urlPath = decodeURIComponent(new URL(req.url, "http://x").pathname); }
+      catch { res.writeHead(400); return res.end("Bad request"); }
       if (urlPath === "/") { res.writeHead(302, { Location: base }); return res.end(); }
       if (!urlPath.startsWith(base)) { res.writeHead(404); return res.end("Outside baseUrl — visit " + base); }
       let file = path.normalize(path.join(outDir, urlPath.slice(base.length)));
-      if (!file.startsWith(outDir)) { res.writeHead(403); return res.end(); }
+      // Compare against outDir plus a separator, not a bare string prefix: a
+      // bare prefix lets "..%2Fdist-secret/" resolve to a sibling directory
+      // such as <root>/dist-secret, which still "starts with" <root>/dist.
+      if (file !== outDir && !file.startsWith(outDir + path.sep)) { res.writeHead(403); return res.end(); }
       if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, "index.html");
       if (!fs.existsSync(file)) {
         res.writeHead(404, { "Content-Type": "text/html" });
@@ -98,8 +106,12 @@ export async function serve(port = 4365) {
       res.writeHead(200, { "Content-Type": MIME[path.extname(file)] || "application/octet-stream" });
       res.end(fs.readFileSync(file));
     })
-    .listen(port, () => {
-      const url = `http://localhost:${server.address().port}${base}`;
+    // Loopback only by default: this server is for previewing your own
+    // build, not for publishing it to the LAN. SD365_HOST=0.0.0.0 opts in
+    // (for example, to check the site from a phone on the same network).
+    .listen(port, host, () => {
+      const shown = host === "127.0.0.1" ? "localhost" : host;
+      const url = `http://${shown}:${server.address().port}${base}`;
       console.log(`\n${c.green(sym.play)} ${c.bold(url)}`);
       hint(`watching ${[...new Set(watched)].map((d) => `${d}/`).join(", ")}`);
       hint(`Ctrl+C to stop`);
@@ -110,7 +122,7 @@ export async function serve(port = 4365) {
     if (err.code === "EADDRINUSE" && !retried) {
       retried = true;
       warn(`Port ${port} is in use (another sd365 serve running?) — picking a free port…`);
-      server.listen(0);
+      server.listen(0, host);
     } else {
       throw err;
     }
