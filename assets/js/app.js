@@ -273,12 +273,16 @@
   }
 
   function mark(text, terms) {
-    var out = text.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    // Mark matches on the raw text and escape afterwards. Escaping first let
+    // a search for "amp" or "lt" match inside "&amp;" / "&lt;" and split the
+    // entity, so the reader saw the literal markup instead of "&" or "<".
+    var out = text;
     terms.forEach(function (q) {
       if (!q) return;
       out = out.replace(new RegExp("(" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig"), "\x01$1\x02");
     });
-    return out.replace(/\x01/g, "<mark>").replace(/\x02/g, "</mark>");
+    return out.replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/\x01/g, "<mark>").replace(/\x02/g, "</mark>");
   }
 
   function run(q) {

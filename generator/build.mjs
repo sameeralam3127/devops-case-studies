@@ -186,6 +186,9 @@ export async function build({ quiet = false } = {}) {
   return { config, sections, pages, tags, outDir };
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+// process.argv[1] is undefined under `node -e`, `node --input-type` and the
+// REPL; pathToFileURL(undefined) throws, which used to make a plain
+// `import "sd365"` crash in those contexts.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   build().catch((e) => { console.error(e); process.exit(1); });
 }

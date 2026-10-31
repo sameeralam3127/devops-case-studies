@@ -24,6 +24,12 @@ jobs:
         with:
           node-version: 20
 
+      # Same gates as ci.yml. A direct push to main or a manual dispatch never
+      # passes through a pull request, so without this a broken config could
+      # reach Pages unchecked.
+      - name: Check configuration
+        run: node scripts/sd365.mjs doctor
+
       - name: Validate content
         run: node scripts/sd365.mjs validate
 

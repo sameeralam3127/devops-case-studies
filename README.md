@@ -95,12 +95,17 @@ Not everything is an incident. Case studies are tagged by type:
 | [CrashLoopBackOff After a Release](docs/04-kubernetes/crashloopbackoff-after-release.md) | Kubernetes | Troubleshooting | Medium |
 | [OOMKilled Under Load](docs/04-kubernetes/oomkilled-under-load.md) | Kubernetes | Troubleshooting | Hard |
 | [Python Execution Surfaces Before Your Code Runs](docs/10-security/python-before-your-code-runs.md) | Security | Reference | Medium |
+| [Cloudflare's 18 Nov 2025 Outage: One Bad Feature File](docs/09-sre/cloudflare-bot-feature-file-outage-2025.md) | SRE | Incident (real) | Hard |
 
 Plus five distributed-systems designs under [System design](#system-design).
 
 This is an honest count. The repository is being rebuilt from a previous
-incarnation ("System Design 365") and I would rather show three finished case
+incarnation ("System Design 365") and I would rather show four finished case
 studies than a hundred stubs — the stubs are exactly what was removed.
+
+The Cloudflare entry is the first **real** incident: its facts come from the
+company's public post-mortem, and the page marks which parts are the published
+record and which are this site's teaching reconstruction.
 
 ## Roadmap
 
